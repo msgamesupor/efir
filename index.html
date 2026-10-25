@@ -1,0 +1,862 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0e1316">
+<meta name="color-scheme" content="light dark">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Эфир">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Эфир</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600&family=Unbounded:wght@500;700&display=swap">
+<style>
+/* Layout: one narrow column, bottom dock with mini-player and four tabs; the tuner dial on the first tab is the one expressive element. */
+:root{
+  --bg:#eef2f3; --surface:#ffffff; --surface2:#e1e9eb; --line:#cfdadd;
+  --fg:#10191d; --muted:#53686f; --accent:#d33f12; --accent-ink:#ffffff; --accent-soft:#f6d9cf;
+  --font-body:'Onest',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --font-display:'Unbounded','Onest',system-ui,sans-serif;
+  --nav:64px;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0e1316; --surface:#161d21; --surface2:#1f2a30; --line:#2a3841;
+    --fg:#e9eff1; --muted:#8fa3ac; --accent:#ff6a3d; --accent-ink:#1c0a03; --accent-soft:#3a2118;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0e1316; --surface:#161d21; --surface2:#1f2a30; --line:#2a3841;
+  --fg:#e9eff1; --muted:#8fa3ac; --accent:#ff6a3d; --accent-ink:#1c0a03; --accent-soft:#3a2118;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{min-height:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.45 var(--font-body);-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent}
+button,input,textarea{font:inherit;color:inherit}
+button{background:none;border:0;padding:0;cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
+h1,h2,h3,p{margin:0}
+.i{width:1.4em;height:1.4em;flex:none;display:block}
+
+.app{max-width:560px;margin:0 auto;padding-block:max(14px,env(safe-area-inset-top)) calc(var(--nav) + 120px + env(safe-area-inset-bottom,0px));
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.tab[hidden]{display:none}
+.topline{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:18px}
+.brand{font:700 15px/1 var(--font-display);letter-spacing:.02em}
+.brand b{color:var(--accent);font-weight:700}
+.topline small{color:var(--muted);font-size:12px}
+h2.title{font:700 22px/1.15 var(--font-display);text-wrap:balance;margin-bottom:6px}
+.lead{color:var(--muted);text-wrap:pretty;max-width:46ch}
+.eyebrow{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:26px 0 10px;font-weight:600}
+
+/* Wave tab */
+.hero{display:grid;justify-items:center;gap:18px;padding:22px 0 8px;text-align:center}
+.wave-btn{position:relative;width:148px;height:148px;border-radius:50%;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;font:700 13px/1.1 var(--font-display);box-shadow:0 10px 30px -10px var(--accent)}
+.wave-btn .i{width:46px;height:46px}
+.wave-btn[disabled]{opacity:.7;cursor:progress}
+.wave-btn::before,.wave-btn::after{content:"";position:absolute;inset:0;border-radius:50%;border:2px solid var(--accent);opacity:0;pointer-events:none}
+.wave-btn.live::before{animation:ring 2.6s ease-out infinite}
+.wave-btn.live::after{animation:ring 2.6s ease-out 1.3s infinite}
+@keyframes ring{0%{transform:scale(1);opacity:.55}100%{transform:scale(1.7);opacity:0}}
+.wave-lbl{font:600 14px var(--font-body);color:var(--fg)}
+.dial{position:relative;width:100%;height:46px;margin-top:6px}
+.ruler{position:absolute;left:0;right:0;bottom:6px;height:22px;
+  background:
+    repeating-linear-gradient(90deg,var(--muted) 0 1px,transparent 1px 28px) bottom/100% 22px no-repeat,
+    repeating-linear-gradient(90deg,var(--line) 0 1px,transparent 1px 7px) bottom/100% 11px no-repeat;
+  border-bottom:1px solid var(--line)}
+.needle{position:absolute;bottom:2px;width:3px;height:40px;margin-left:-1.5px;background:var(--accent);border-radius:2px;left:50%;transition:left .7s cubic-bezier(.3,.9,.3,1)}
+.needle::after{content:"";position:absolute;top:-3px;left:-3px;width:9px;height:9px;border-radius:50%;background:var(--accent)}
+.dial-label{font-size:13px;color:var(--muted);margin-top:-2px}
+.dial-label b{color:var(--fg);font-weight:600}
+
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{padding:8px 14px;border-radius:999px;background:var(--surface);border:1px solid var(--line);font-size:14px;font-weight:500;min-height:38px}
+.chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.chip.sm{padding:6px 12px;min-height:34px;font-size:13px}
+
+/* Rows */
+.list{display:flex;flex-direction:column;gap:2px;margin:0 -8px}
+.row{display:flex;align-items:center;gap:12px;padding:8px;border-radius:12px;min-width:0;cursor:pointer}
+.row:hover{background:var(--surface)}
+.row.on{background:var(--accent-soft)}
+.cov{position:relative;flex:none;width:48px;height:48px;border-radius:8px;overflow:hidden;background:linear-gradient(135deg,var(--surface2),var(--line));display:grid;place-items:center;color:var(--muted)}
+.cov img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.cov .i{width:22px;height:22px}
+.meta{min-width:0;flex:1}
+.meta .t{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.meta .a{color:var(--muted);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dur{color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}
+.icon-btn{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;color:var(--muted);flex:none}
+.icon-btn:hover{color:var(--fg)}
+.icon-btn.liked{color:var(--accent)}
+.pill{display:inline-flex;align-items:center;gap:8px;padding:10px 16px;border-radius:999px;background:var(--surface);border:1px solid var(--line);font-weight:600;font-size:14px}
+.pill.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.pill .i{width:18px;height:18px}
+.actions{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 8px}
+.empty{color:var(--muted);padding:18px 0;text-wrap:pretty;max-width:46ch}
+
+/* Search */
+.search{display:flex;gap:8px;margin-bottom:14px}
+.search input{flex:1;min-width:0;height:46px;padding:0 14px;border-radius:12px;border:1px solid var(--line);background:var(--surface);outline:none}
+.search input:focus{border-color:var(--accent)}
+.search .pill{height:46px}
+
+/* Taste */
+.bars{display:grid;gap:8px}
+.bar{display:grid;grid-template-columns:minmax(90px,34%) 1fr;gap:10px;align-items:center;font-size:14px}
+.bar span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar i{display:block;height:8px;border-radius:4px;background:var(--surface2);position:relative;overflow:hidden}
+.bar i::after{content:"";position:absolute;inset:0;width:var(--w,0%);background:var(--accent);border-radius:4px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:18px}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px}
+.stat b{display:block;font:700 20px/1.1 var(--font-display);font-variant-numeric:tabular-nums}
+.stat small{color:var(--muted);font-size:12px}
+textarea{width:100%;min-height:96px;border-radius:12px;border:1px solid var(--line);background:var(--surface);padding:10px;font:12px/1.4 ui-monospace,Menlo,Consolas,monospace;resize:vertical}
+.note{background:var(--accent-soft);border-radius:12px;padding:12px 14px;margin-bottom:16px;font-size:14px}
+.diag{margin:6px 0 0;padding:12px;border-radius:12px;background:var(--surface);border:1px solid var(--line);font:12px/1.5 ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere;user-select:text}
+.credit{color:var(--muted);font-size:12px;margin-top:28px}
+.credit a{color:inherit}
+.danger{color:var(--accent)}
+
+/* Dock */
+.dock{position:fixed;left:0;right:0;bottom:0;z-index:20;pointer-events:none;background:var(--bg)}
+.mini{pointer-events:auto;max-width:560px;margin:8px auto;display:flex;align-items:center;gap:10px;padding:8px 8px 10px;
+  margin-left:max(8px,env(safe-area-inset-left,0px));margin-right:max(8px,env(safe-area-inset-right,0px));
+  margin-block:8px;
+  background:var(--surface);border:1px solid var(--line);border-radius:16px;position:relative;overflow:hidden;box-shadow:0 8px 24px -12px #000}
+@media (min-width:576px){.mini{margin-left:auto;margin-right:auto}}
+.mini[hidden]{display:none}
+.mini .meta{cursor:pointer}
+.mini .prog{position:absolute;left:0;bottom:0;height:3px;width:0;background:var(--accent)}
+.nav{pointer-events:auto;background:var(--bg);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px)}
+.nav-in{max-width:560px;margin:0 auto;display:grid;grid-template-columns:repeat(4,1fr);height:var(--nav)}
+.nav button{display:grid;justify-items:center;align-content:center;gap:3px;font-size:12px;color:var(--muted);font-weight:500}
+.nav button[aria-current="page"]{color:var(--accent)}
+
+/* Full player */
+.sheet{position:fixed;inset:0;z-index:40;background:var(--bg);transform:translateY(102%);visibility:hidden;transition:transform .35s cubic-bezier(.2,.8,.2,1),visibility 0s .35s;overflow:auto}
+.sheet.open{transform:none;visibility:visible;transition:transform .35s cubic-bezier(.2,.8,.2,1)}
+.sheet-in{max-width:440px;margin:0 auto;min-height:100%;display:flex;flex-direction:column;gap:18px;padding-block:max(12px,env(safe-area-inset-top)) max(20px,env(safe-area-inset-bottom));
+  padding-left:max(20px,env(safe-area-inset-left,0px));padding-right:max(20px,env(safe-area-inset-right,0px))}
+.sheet-top{display:flex;justify-content:space-between;align-items:center;color:var(--muted);font-size:13px}
+.big{width:100%;max-width:340px;aspect-ratio:1;margin:0 auto;border-radius:18px;overflow:hidden;background:linear-gradient(135deg,var(--surface2),var(--line));position:relative;display:grid;place-items:center;color:var(--muted)}
+.big img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.big .i{width:64px;height:64px}
+.now h2{font:700 20px/1.2 var(--font-display);text-wrap:balance;overflow-wrap:anywhere}
+.now p{color:var(--muted);margin-top:4px}
+.tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.tag{font-size:12px;padding:3px 10px;border-radius:999px;background:var(--surface2);color:var(--muted)}
+.seek{display:grid;gap:4px}
+.times{display:flex;justify-content:space-between;color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:28px;background:transparent;margin:0;cursor:pointer}
+input[type=range]::-webkit-slider-runnable-track{height:4px;border-radius:2px;background:linear-gradient(to right,var(--accent) var(--p,0%),var(--line) var(--p,0%))}
+input[type=range]::-moz-range-track{height:4px;border-radius:2px;background:linear-gradient(to right,var(--accent) var(--p,0%),var(--line) var(--p,0%))}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:var(--accent);margin-top:-6px;border:0}
+input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:var(--accent);border:0}
+.ctrls{display:flex;align-items:center;justify-content:space-between}
+.ctrls .icon-btn{width:52px;height:52px;color:var(--fg)}
+.ctrls .icon-btn .i{width:28px;height:28px}
+.ctrls .play{width:72px;height:72px;background:var(--accent);color:var(--accent-ink)}
+.ctrls .play .i{width:34px;height:34px}
+.ctrls .side{color:var(--muted)}
+.ctrls .side.liked{color:var(--accent)}
+.fine{text-align:center;color:var(--muted);font-size:12px}
+
+.toast{position:fixed;left:50%;bottom:calc(var(--nav) + 100px + env(safe-area-inset-bottom,0px));transform:translate(-50%,10px);opacity:0;pointer-events:none;z-index:60;
+  background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:12px;font-size:14px;max-width:min(92vw,420px);text-align:center;transition:opacity .2s,transform .2s}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+@media (prefers-reduced-motion:reduce){
+  .wave-btn.live::before,.wave-btn.live::after{animation:none}
+  .needle,.sheet,.sheet.open,.toast{transition:none}
+}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-play" viewBox="0 0 24 24"><path fill="currentColor" d="M8 5v14l11-7z"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24"><path fill="currentColor" d="M7 5h4v14H7zM13 5h4v14h-4z"/></symbol>
+  <symbol id="i-next" viewBox="0 0 24 24"><path fill="currentColor" d="M6 5v14l9-7zM17 5h2v14h-2z"/></symbol>
+  <symbol id="i-prev" viewBox="0 0 24 24"><path fill="currentColor" d="M18 5v14l-9-7zM5 5h2v14H5z"/></symbol>
+  <symbol id="i-heart" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" d="M12 20s-7.5-4.6-7.5-10.3A4.2 4.2 0 0 1 12 7.2a4.2 4.2 0 0 1 7.5 2.5C19.500 15.400 12 20 12 20z"/></symbol>
+  <symbol id="i-heart-f" viewBox="0 0 24 24"><path fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linejoin="round" d="M12 20s-7.5-4.6-7.5-10.3A4.2 4.2 0 0 1 12 7.2a4.2 4.2 0 0 1 7.5 2.5C19.500 15.400 12 20 12 20z"/></symbol>
+  <symbol id="i-ban" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="8"/><path d="M6.400 6.400l11.200 11.200"/></g></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6.500"/><path d="M16 16l4 4"/></g></symbol>
+  <symbol id="i-wave" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M4 12h.01M8 8v8M12 4v16M16 8v8M20 12h.01"/></symbol>
+  <symbol id="i-taste" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h8M18 7h2M4 17h2M12 17h8"/><circle cx="15" cy="7" r="2.500"/><circle cx="9" cy="17" r="2.500"/></g></symbol>
+  <symbol id="i-note" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M9 18V6l10-2v12M9 18a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM19 16a3 3 0 1 1-6 0 3 3 0 0 1 6 0z"/></symbol>
+</svg>
+
+<audio id="audio" preload="auto"></audio>
+
+<div class="app">
+
+  <!-- Волна -->
+  <section class="tab" id="tab-wave" aria-labelledby="h-wave">
+    <div class="topline"><div class="brand">эфир<b>.</b></div><small id="netState"></small></div>
+    <h2 class="title" id="h-wave">Волна</h2>
+    <p class="lead" id="waveStatus">Подберу музыку по лайкам, пропускам и тому, что дослушано до конца.</p>
+
+    <div class="hero">
+      <button class="wave-btn" id="waveBtn" type="button" aria-label="Включить волну"><svg class="i" id="waveIcon"><use href="#i-play"/></svg></button>
+      <div class="wave-lbl" id="waveLbl">Включить волну</div>
+      <div class="dial" aria-hidden="true"><div class="ruler"></div><div class="needle" id="needle"></div></div>
+      <p class="dial-label">На частоте: <b id="dialGenre">ждёт тебя</b></p>
+    </div>
+
+    <h3 class="eyebrow">Настроение</h3>
+    <div class="chips" id="modes" role="group" aria-label="Настроение"></div>
+
+    <h3 class="eyebrow">Что слушать чаще</h3>
+    <div class="chips" id="seeds" role="group" aria-label="Жанры"></div>
+  </section>
+
+  <!-- Поиск -->
+  <section class="tab" id="tab-search" hidden aria-labelledby="h-search">
+    <div class="topline"><div class="brand">эфир<b>.</b></div></div>
+    <h2 class="title" id="h-search">Поиск</h2>
+    <form class="search" id="searchForm" role="search">
+      <input id="q" type="search" placeholder="Трек, исполнитель, жанр" enterkeyhint="search" autocomplete="off" aria-label="Поиск">
+      <button class="pill primary" type="submit">Найти</button>
+    </form>
+    <h3 class="eyebrow" id="searchHead" style="margin-top:8px">В тренде на этой неделе</h3>
+    <div class="list" id="searchList"></div>
+  </section>
+
+  <!-- Любимое -->
+  <section class="tab" id="tab-likes" hidden aria-labelledby="h-likes">
+    <div class="topline"><div class="brand">эфир<b>.</b></div></div>
+    <h2 class="title" id="h-likes">Любимое</h2>
+    <p class="lead" id="likesLead"></p>
+    <div class="actions" id="likesActions"></div>
+    <div class="list" id="likesList"></div>
+    <h3 class="eyebrow" id="recentHead">Недавно слушал</h3>
+    <div class="list" id="recentList"></div>
+  </section>
+
+  <!-- Вкус -->
+  <section class="tab" id="tab-taste" hidden aria-labelledby="h-taste">
+    <div class="topline"><div class="brand">эфир<b>.</b></div></div>
+    <h2 class="title" id="h-taste">Твой вкус</h2>
+    <p class="lead">Всё считается на этом устройстве. Лайк и дослушанный трек добавляют очки, пропуск и скрытие отнимают.</p>
+    <div class="note" id="storeNote" hidden></div>
+    <div class="stats" id="stats"></div>
+    <h3 class="eyebrow">Жанры</h3><div class="bars" id="barsGenre"></div>
+    <h3 class="eyebrow">Настроения</h3><div class="bars" id="barsMood"></div>
+    <h3 class="eyebrow">Исполнители</h3><div class="bars" id="barsArtist"></div>
+    <h3 class="eyebrow">Скрытые треки</h3>
+    <div class="list" id="bannedList"></div>
+    <h3 class="eyebrow">Связь с каталогом</h3>
+    <p class="lead" style="margin-bottom:10px">Если музыка не грузится, нажми проверку и пришли мне, что она покажет.</p>
+    <div class="actions" style="margin-top:0"><button class="pill primary" id="diagBtn" type="button">Проверить связь</button></div>
+    <pre id="diagOut" class="diag" hidden></pre>
+    <h3 class="eyebrow">Перенос и сброс</h3>
+    <p class="lead" style="margin-bottom:10px">Скопируй данные, чтобы перенести вкус на другое устройство или сохранить на всякий случай. Вставь их обратно и нажми «Загрузить».</p>
+    <textarea id="bk" aria-label="Данные" spellcheck="false" placeholder="Здесь появятся данные"></textarea>
+    <div class="actions">
+      <button class="pill" id="bkShow" type="button">Показать</button>
+      <button class="pill" id="bkCopy" type="button">Скопировать</button>
+      <button class="pill" id="bkLoad" type="button">Загрузить</button>
+      <button class="pill danger" id="bkReset" type="button">Сбросить вкус</button>
+    </div>
+    <p class="credit">Музыку отдаёт каталог <a href="https://audius.co" target="_blank" rel="noopener">Audius</a>. Это независимые исполнители, а не релизы больших лейблов.</p>
+  </section>
+</div>
+
+<div class="dock">
+  <div class="mini" id="mini" hidden>
+    <div class="cov" id="miniCov"></div>
+    <div class="meta" id="miniMeta" role="button" tabindex="0" aria-label="Открыть плеер"><div class="t" id="miniT"></div><div class="a" id="miniA"></div></div>
+    <button class="icon-btn" id="miniPlay" type="button" aria-label="Пауза"><svg class="i"><use href="#i-pause"/></svg></button>
+    <button class="icon-btn" id="miniNext" type="button" aria-label="Следующий"><svg class="i"><use href="#i-next"/></svg></button>
+    <div class="prog" id="miniProg"></div>
+  </div>
+  <nav class="nav" aria-label="Разделы"><div class="nav-in">
+    <button type="button" data-tab="wave" aria-current="page"><svg class="i"><use href="#i-wave"/></svg>Волна</button>
+    <button type="button" data-tab="search"><svg class="i"><use href="#i-search"/></svg>Поиск</button>
+    <button type="button" data-tab="likes"><svg class="i"><use href="#i-heart"/></svg>Любимое</button>
+    <button type="button" data-tab="taste"><svg class="i"><use href="#i-taste"/></svg>Вкус</button>
+  </div></nav>
+</div>
+
+<div class="sheet" id="sheet" aria-hidden="true">
+  <div class="sheet-in">
+    <div class="sheet-top">
+      <button class="icon-btn" id="sheetClose" type="button" aria-label="Свернуть"><svg class="i"><use href="#i-down"/></svg></button>
+      <span id="sheetMode">Волна</span>
+      <span style="width:44px"></span>
+    </div>
+    <div class="big" id="bigCov"></div>
+    <div class="now"><h2 id="nowT">—</h2><p id="nowA"></p><div class="tags" id="nowTags"></div></div>
+    <div class="seek">
+      <input type="range" id="seek" min="0" max="1000" value="0" step="1" aria-label="Перемотка">
+      <div class="times"><span id="tCur">0:00</span><span id="tDur">0:00</span></div>
+    </div>
+    <div class="ctrls">
+      <button class="icon-btn side" id="btnBan" type="button" aria-label="Скрыть трек и не включать похожее"><svg class="i"><use href="#i-ban"/></svg></button>
+      <button class="icon-btn" id="btnPrev" type="button" aria-label="Предыдущий"><svg class="i"><use href="#i-prev"/></svg></button>
+      <button class="icon-btn play" id="btnPlay" type="button" aria-label="Пауза"><svg class="i" id="playIcon"><use href="#i-pause"/></svg></button>
+      <button class="icon-btn" id="btnNext" type="button" aria-label="Следующий"><svg class="i"><use href="#i-next"/></svg></button>
+      <button class="icon-btn side" id="btnLike" type="button" aria-label="В любимое"><svg class="i" id="likeIcon"><use href="#i-heart"/></svg></button>
+    </div>
+    <p class="fine">Пропуск в первые секунды говорит волне «не то». Скрытие говорит «никогда».</p>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(() => {
+'use strict';
+
+const APP = 'efir_personal';
+const API = 'https://api.audius.co/v1';
+const KEY = 'efir.v1';
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const pick = a => a[Math.floor(Math.random() * a.length)];
+
+const GENRES = [
+  ['Electronic','Электроника'],['House','Хаус'],['Techno','Техно'],['Trance','Транс'],['Drum & Bass','Драм-н-бейс'],['Dubstep','Дабстеп'],
+  ['Lo-Fi','Лоу-фай'],['Hip-Hop/Rap','Хип-хоп и рэп'],['Trap','Трэп'],['Pop','Поп'],['Rock','Рок'],['Metal','Метал'],
+  ['Alternative','Альтернатива'],['Punk','Панк'],['Jazz','Джаз'],['Classical','Классика'],['Ambient','Эмбиент'],['Folk','Фолк'],
+  ['Acoustic','Акустика'],['R&B/Soul','R&B и соул'],['Funk','Фанк'],['Disco','Диско'],['Reggae','Регги'],['Soundtrack','Саундтреки'],
+  ['Hyperpop','Хайперпоп'],['Vaporwave','Вейпорвейв'],['Downtempo','Даунтемпо'],['Experimental','Экспериментальная']
+];
+const GNAME = Object.fromEntries(GENRES);
+const gname = g => GNAME[g] || g || 'без жанра';
+const MODES = {
+  any:   {label:'Любое'},
+  calm:  {label:'Спокойно', moods:['Peaceful','Easygoing','Tender','Melancholy','Sentimental','Romantic'], genres:['Ambient','Lo-Fi','Acoustic','Downtempo','Jazz','Folk']},
+  upbeat:{label:'Бодро',    moods:['Upbeat','Energizing','Excited','Empowering','Stirring'], genres:['Pop','House','Disco','Funk','Electronic']},
+  hard:  {label:'Жёстко',   moods:['Aggressive','Gritty','Defiant','Rowdy','Fiery'], genres:['Metal','Punk','Drum & Bass','Dubstep','Trap','Techno']},
+  focus: {label:'Фокус',    moods:['Easygoing','Peaceful','Serious','Cool','Sophisticated'], genres:['Lo-Fi','Ambient','Classical','Downtempo','Soundtrack']}
+};
+const MOODRU = {Peaceful:'Умиротворённо',Romantic:'Романтично',Sentimental:'Сентиментально',Tender:'Нежно',Easygoing:'Расслабленно',Yearning:'Тоска',
+  Sophisticated:'Изысканно',Sensual:'Чувственно',Cool:'Невозмутимо',Gritty:'Грубо',Melancholy:'Меланхолично',Serious:'Серьёзно',Brooding:'Мрачно',
+  Fiery:'Горячо',Defiant:'Дерзко',Aggressive:'Агрессивно',Rowdy:'Буйно',Excited:'Взволнованно',Energizing:'Заряжает',Empowering:'Вдохновляет',
+  Stirring:'Будоражит',Upbeat:'Бодро',Other:'Другое'};
+const mname = m => MOODRU[m] || m || '';
+
+/* ---------- state + storage ---------- */
+const blank = () => ({v:1, taste:{genre:{}, mood:{}, artist:{}}, likes:[], banned:{}, recent:[], recentIds:[], seeds:[], mode:'any', plays:0, skips:0});
+let S = blank();
+let canStore = true;
+function adopt(d) {
+  const b = blank();
+  S = Object.assign(b, d || {});
+  S.taste = Object.assign(b.taste, (d && d.taste) || {});
+  for (const k of ['genre','mood','artist']) S.taste[k] = S.taste[k] || {};
+  S.likes = Array.isArray(S.likes) ? S.likes : [];
+  S.recent = Array.isArray(S.recent) ? S.recent : [];
+  S.recentIds = Array.isArray(S.recentIds) ? S.recentIds : [];
+  S.seeds = Array.isArray(S.seeds) ? S.seeds : [];
+  S.banned = S.banned && typeof S.banned === 'object' ? S.banned : {};
+}
+function loadState() {
+  try {
+    localStorage.setItem('__efir', '1'); localStorage.removeItem('__efir');
+    const raw = localStorage.getItem(KEY);
+    if (raw) adopt(JSON.parse(raw));
+  } catch (e) { canStore = false; }
+}
+function save() {
+  if (!canStore) return;
+  try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { canStore = false; storeNote(); }
+}
+function storeNote() {
+  const n = $('#storeNote');
+  n.hidden = canStore;
+  n.textContent = canStore ? '' : 'В этом режиме открытия файла браузер не сохраняет данные. Вкус будет жить, пока открыта страница. Открой файл в Chrome или перенеси данные кнопкой «Скопировать» внизу.';
+}
+
+/* ---------- API ---------- */
+const base = () => (S.host || API).replace(/\/+$/, '');
+let lastErr = '';
+function why(e) {
+  const m = (e && e.message) || '';
+  if (m === 'timeout') return 'нет ответа за 12 секунд. Похоже, адрес каталога не открывается из твоей сети.';
+  if (m === 'network') return 'браузер не смог подключиться к каталогу. Похоже на блокировку сети или запрет браузера.';
+  if (m === 'json') return 'каталог вернул не те данные.';
+  if (m.startsWith('http')) return 'каталог ответил ошибкой (' + m.replace('http ', '') + ').';
+  return m || 'неизвестная ошибка.';
+}
+async function api(path, params = {}) {
+  const u = new URL(base() + path);
+  u.searchParams.set('app_name', APP);
+  for (const [k, v] of Object.entries(params)) if (v != null) u.searchParams.set(k, v);
+  const ctl = new AbortController();
+  const to = setTimeout(() => ctl.abort(), 12000);
+  try {
+    let r;
+    try { r = await fetch(u, {signal: ctl.signal}); }
+    catch (e) { throw new Error(e && e.name === 'AbortError' ? 'timeout' : 'network'); }
+    if (!r.ok) throw new Error('http ' + r.status);
+    let j;
+    try { j = await r.json(); } catch (e) { throw new Error('json'); }
+    return Array.isArray(j.data) ? j.data : [];
+  } catch (e) { lastErr = why(e); throw e; }
+  finally { clearTimeout(to); }
+}
+function norm(t) {
+  if (!t || !t.id) return null;
+  const u = t.user || {}, a = t.artwork || {};
+  return {
+    id: String(t.id), title: t.title || 'Без названия', artist: u.name || 'Неизвестный исполнитель',
+    artistId: u.id ? String(u.id) : '', genre: t.genre || '', mood: t.mood || '',
+    art: a['480x480'] || a['150x150'] || a['1000x1000'] || '', dur: Math.round(t.duration || 0), plays: t.play_count || 0,
+    ok: t.is_streamable !== false && !t.is_stream_gated && !t.is_unlisted && !t.is_delete,
+    su: (t.stream && t.stream.url) || ''
+  };
+}
+const slim = t => ({id:t.id, title:t.title, artist:t.artist, artistId:t.artistId, genre:t.genre, mood:t.mood, art:t.art, dur:t.dur});
+const streamUrl = t => `${base()}/tracks/${encodeURIComponent(t.id)}/stream?app_name=${APP}`;
+
+/* ---------- taste ---------- */
+function bump(o, k, d) { if (k) o[k] = (o[k] || 0) + d; }
+function signal(t, g, m, a) {
+  const T = S.taste;
+  bump(T.genre, t.genre, g); bump(T.mood, t.mood, m);
+  if (t.artistId) { const e = T.artist[t.artistId] || (T.artist[t.artistId] = {n: t.artist, s: 0}); e.n = t.artist; e.s += a; }
+}
+function decay() {
+  const T = S.taste;
+  for (const k of ['genre','mood']) for (const x of Object.keys(T[k])) { T[k][x] *= 0.985; if (Math.abs(T[k][x]) < 0.05) delete T[k][x]; }
+  for (const x of Object.keys(T.artist)) { T.artist[x].s *= 0.985; if (Math.abs(T.artist[x].s) < 0.05) delete T.artist[x]; }
+}
+const top = (o, n, f = v => v) => Object.entries(o).map(([k, v]) => [k, f(v)]).filter(x => x[1] > 0.05).sort((a, b) => b[1] - a[1]).slice(0, n);
+const isLiked = id => S.likes.some(t => t.id === id);
+
+/* ---------- wave builder ---------- */
+function wsample(items, k) {
+  const pool = items.slice(), out = [];
+  while (out.length < k && pool.length) {
+    const tot = pool.reduce((s, x) => s + x.w, 0);
+    let r = Math.random() * tot, i = 0;
+    for (; i < pool.length - 1; i++) { r -= pool[i].w; if (r <= 0) break; }
+    out.push(pool.splice(i, 1)[0].g);
+  }
+  return out;
+}
+async function trendingGenre(g) {
+  const time = pick(['week', 'month', 'allTime']), offset = Math.floor(Math.random() * 5) * 10;
+  let r = await api('/tracks/trending', {genre: g, time, limit: 40, offset});
+  if (!r.length && offset) r = await api('/tracks/trending', {genre: g, time, limit: 40});
+  return r;
+}
+async function buildWave(n, exclude) {
+  const mode = MODES[S.mode] || MODES.any, T = S.taste;
+  let weights = GENRES.map(([g]) => ({g, w: Math.max(0, T.genre[g] || 0) + (S.seeds.includes(g) ? 3 : 0)})).filter(x => x.w > 0);
+  if (mode.genres) weights = mode.genres.map(g => ({g, w: Math.max(0, T.genre[g] || 0) + 2}));
+  if (!weights.length) weights = ['Electronic','Pop','Rock','Hip-Hop/Rap','Lo-Fi','Alternative'].map(g => ({g, w: 1}));
+  const picks = wsample(weights, 2);
+  if (S.mode === 'any' && Math.random() < 0.3) {
+    const others = GENRES.map(x => x[0]).filter(g => !picks.includes(g));
+    picks.push(pick(others));
+  }
+  const jobs = picks.map(trendingGenre);
+  const favs = Object.entries(T.artist).filter(([, e]) => e.s >= 2).sort((a, b) => b[1].s - a[1].s).slice(0, 6);
+  if (favs.length && S.mode === 'any' && Math.random() < 0.45) {
+    jobs.push(api(`/users/${encodeURIComponent(pick(favs)[0])}/tracks`, {limit: 25}).catch(() => []));
+  }
+  const res = (await Promise.allSettled(jobs)).filter(r => r.status === 'fulfilled');
+  if (!res.length) throw new Error('net');
+  const seen = new Set(exclude), cands = [];
+  for (const r of res) for (const raw of r.value) {
+    const t = norm(raw);
+    if (!t || !t.ok || seen.has(t.id) || S.banned[t.id] || S.recentIds.includes(t.id)) continue;
+    if (t.dur < 45 || t.dur > 720) continue;
+    if (((T.artist[t.artistId] || {}).s || 0) <= -4) continue;
+    seen.add(t.id);
+    const m = mode.moods && mode.moods.includes(t.mood) ? 3 : 0;
+    t._s = (T.genre[t.genre] || 0) + (S.seeds.includes(t.genre) ? 2 : 0) + (T.mood[t.mood] || 0) * 0.5
+         + ((T.artist[t.artistId] || {}).s || 0) * 1.2 + Math.log10(t.plays + 10) * 0.8 + m + Math.random() * 2.5;
+    cands.push(t);
+  }
+  cands.sort((a, b) => b._s - a._s);
+  const out = [];
+  for (const t of cands) {
+    if (out.length >= n) break;
+    if (out.length && out[out.length - 1].artistId && out[out.length - 1].artistId === t.artistId) continue;
+    out.push(t);
+  }
+  if (!out.length) throw new Error('empty');
+  return out;
+}
+
+/* ---------- player ---------- */
+const au = $('#audio');
+let queue = [], qi = -1, mode = 'wave', cur = null, usingSu = false, errs = 0, refillP = null, seeking = false, loading = false;
+
+function finish(reason) {
+  if (!cur) return;
+  const t = cur; cur = null;
+  const listened = au.currentTime || 0, dur = (isFinite(au.duration) && au.duration) || t.dur || 0;
+  const f = dur ? listened / dur : 0;
+  if (reason === 'ended' || f >= 0.75) {
+    signal(t, 1, 0.5, 0.7); S.plays++;
+    S.recent = [slim(t), ...S.recent.filter(x => x.id !== t.id)].slice(0, 40);
+  } else if (reason === 'skip' && mode === 'wave' && listened < 30 && f < 0.35 && !isLiked(t.id)) {
+    signal(t, -1, -0.5, -0.8); S.skips++;
+  }
+  decay(); save();
+}
+function startTrack() {
+  const t = queue[qi];
+  if (!t) return;
+  cur = t;
+  S.recentIds = [...S.recentIds.filter(x => x !== t.id), t.id].slice(-150);
+  usingSu = !!t.su;
+  au.src = t.su || streamUrl(t);
+  au.play().catch(() => {});
+  save(); renderPlayer(); setMedia();
+  if (mode === 'wave' && queue.length - qi <= 3) refill().catch(() => {});
+}
+function playList(list, index, m) {
+  finish('switch');
+  queue = list.slice(); qi = index; mode = m; startTrack();
+}
+function refill() {
+  if (!refillP) refillP = buildWave(8, queue.map(t => t.id)).then(more => { queue.push(...more); }).finally(() => { refillP = null; });
+  return refillP;
+}
+async function startWave() {
+  if (loading) return;
+  setLoading(true);
+  try {
+    const first = await buildWave(10, []);
+    playList(first, 0, 'wave');
+    openSheet();
+  } catch (e) {
+    toast(e.message === 'empty' ? 'Ничего подходящего не нашлось. Попробуй ещё раз.' : 'Каталог не отвечает: ' + (lastErr || why(e)) + ' Подробности: вкладка «Вкус», проверка связи.');
+  } finally { setLoading(false); }
+}
+async function advance(reason) {
+  finish(reason);
+  if (qi + 1 < queue.length) { qi++; startTrack(); return; }
+  if (mode === 'wave') {
+    setLoading(true);
+    try { await refill(); if (qi + 1 < queue.length) { qi++; startTrack(); } }
+    catch (e) { toast('Не получилось подобрать следующее. Проверь интернет.'); au.pause(); }
+    finally { setLoading(false); }
+    return;
+  }
+  au.pause(); au.currentTime = 0; renderPlayer();
+}
+function prev() {
+  if (au.currentTime > 3 || qi <= 0) { au.currentTime = 0; return; }
+  finish('switch'); qi--; startTrack();
+}
+function toggle() {
+  if (!cur) return;
+  if (au.paused) au.play().catch(() => {}); else au.pause();
+}
+function ban() {
+  if (!cur) return;
+  const t = cur;
+  signal(t, -4, -2, -3);
+  S.banned[t.id] = slim(t);
+  S.likes = S.likes.filter(x => x.id !== t.id);
+  cur = null; save();
+  toast('Скрыл. Такое больше не включу.');
+  renderAll();
+  advance('ban');
+}
+function like(t) {
+  if (!t) return;
+  if (isLiked(t.id)) {
+    S.likes = S.likes.filter(x => x.id !== t.id);
+    signal(t, -3, -1.5, -2);
+  } else {
+    S.likes = [slim(t), ...S.likes];
+    delete S.banned[t.id];
+    signal(t, 3, 1.5, 2);
+    toast('Добавил в любимое');
+  }
+  save(); renderAll();
+}
+
+au.addEventListener('ended', () => advance('ended'));
+au.addEventListener('playing', () => { errs = 0; updatePlayState(); });
+au.addEventListener('pause', updatePlayState);
+au.addEventListener('play', updatePlayState);
+au.addEventListener('timeupdate', updateTime);
+au.addEventListener('durationchange', updateTime);
+au.addEventListener('error', () => {
+  if (!cur) return;
+  if (usingSu) { usingSu = false; au.src = streamUrl(cur); au.play().catch(() => {}); return; }
+  errs++;
+  if (errs >= 3) { errs = 0; au.pause(); toast('Музыка не загружается. Проверь интернет.'); return; }
+  toast('Трек не открылся, включаю следующий');
+  setTimeout(() => advance('error'), 700);
+});
+
+/* ---------- rendering ---------- */
+const fmt = s => { s = Math.max(0, Math.floor(s || 0)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
+const cover = (t, cls = 'cov') => `<div class="${cls}"><svg class="i"><use href="#i-note"/></svg>${t && t.art ? `<img src="${esc(t.art)}" alt="" loading="lazy" onerror="this.remove()">` : ''}</div>`;
+const ico = id => `<svg class="i"><use href="#${id}"/></svg>`;
+
+function rowHtml(t, ctx, i) {
+  const on = cur && cur.id === t.id;
+  return `<div class="row${on ? ' on' : ''}" data-ctx="${ctx}" data-i="${i}" data-id="${esc(t.id)}" role="button" tabindex="0">
+    ${cover(t)}<div class="meta"><div class="t">${esc(t.title)}</div><div class="a">${esc(t.artist)}${t.genre ? ' · ' + esc(gname(t.genre)) : ''}</div></div>
+    <span class="dur">${t.dur ? fmt(t.dur) : ''}</span>
+    <button class="icon-btn${isLiked(t.id) ? ' liked' : ''}" type="button" data-like="${i}" data-ctx="${ctx}" aria-label="${isLiked(t.id) ? 'Убрать из любимого' : 'В любимое'}">${ico(isLiked(t.id) ? 'i-heart-f' : 'i-heart')}</button>
+  </div>`;
+}
+let lists = {search: [], likes: [], recent: []};
+let searchLoaded = false;
+
+function renderWave() {
+  $('#modes').innerHTML = Object.entries(MODES).map(([k, m]) => `<button class="chip" type="button" data-mode="${k}" aria-pressed="${S.mode === k}">${m.label}</button>`).join('');
+  $('#seeds').innerHTML = GENRES.map(([g, n]) => `<button class="chip sm" type="button" data-seed="${esc(g)}" aria-pressed="${S.seeds.includes(g)}">${n}</button>`).join('');
+  const tg = top(S.taste.genre, 3);
+  $('#waveStatus').textContent = tg.length
+    ? 'Сейчас ближе всего: ' + tg.map(x => gname(x[0]).toLowerCase()).join(', ') + '. Лайки и пропуски меняют подбор на ходу.'
+    : 'Отметь пару жанров ниже или сразу включай: начну с популярного и буду учиться на твоих лайках и пропусках.';
+}
+function setLoading(v) {
+  loading = v;
+  const b = $('#waveBtn'); b.disabled = v;
+  updatePlayState();
+}
+function updatePlayState() {
+  const playing = !!cur && !au.paused;
+  const btn = $('#waveBtn');
+  btn.classList.toggle('live', playing);
+  const waveActive = !!cur && mode === 'wave';
+  $('#waveIcon').innerHTML = `<use href="#${waveActive && playing ? 'i-pause' : 'i-play'}"/>`;
+  const lbl = loading ? 'Подбираю…' : waveActive ? (playing ? 'Волна играет' : 'Продолжить') : 'Включить волну';
+  $('#waveLbl').textContent = lbl;
+  btn.setAttribute('aria-label', lbl);
+  $('#playIcon').innerHTML = `<use href="#${playing ? 'i-pause' : 'i-play'}"/>`;
+  $('#miniPlay').innerHTML = ico(playing ? 'i-pause' : 'i-play');
+  $('#miniPlay').setAttribute('aria-label', playing ? 'Пауза' : 'Играть');
+  $('#btnPlay').setAttribute('aria-label', playing ? 'Пауза' : 'Играть');
+  if ('mediaSession' in navigator) navigator.mediaSession.playbackState = playing ? 'playing' : 'paused';
+}
+function updateTime() {
+  const d = (isFinite(au.duration) && au.duration) || (cur && cur.dur) || 0, c = au.currentTime || 0;
+  const p = d ? Math.min(100, c / d * 100) : 0;
+  $('#tCur').textContent = fmt(c); $('#tDur').textContent = fmt(d);
+  $('#miniProg').style.width = p + '%';
+  if (!seeking) { const s = $('#seek'); s.value = Math.round(p * 10); s.style.setProperty('--p', p + '%'); }
+}
+function renderPlayer() {
+  const has = !!cur;
+  $('#mini').hidden = !has;
+  if (has) {
+    $('#miniCov').outerHTML = cover(cur).replace('class="cov"', 'class="cov" id="miniCov"');
+    $('#miniT').textContent = cur.title; $('#miniA').textContent = cur.artist;
+    $('#bigCov').innerHTML = `<svg class="i"><use href="#i-note"/></svg>` + (cur.art ? `<img src="${esc(cur.art)}" alt="" onerror="this.remove()">` : '');
+    $('#nowT').textContent = cur.title; $('#nowA').textContent = cur.artist;
+    $('#nowTags').innerHTML = [cur.genre && gname(cur.genre), cur.mood && mname(cur.mood)].filter(Boolean).map(x => `<span class="tag">${esc(x)}</span>`).join('');
+    $('#sheetMode').textContent = mode === 'wave' ? 'Волна' : 'Из списка';
+    const liked = isLiked(cur.id);
+    $('#btnLike').classList.toggle('liked', liked);
+    $('#likeIcon').innerHTML = `<use href="#${liked ? 'i-heart-f' : 'i-heart'}"/>`;
+    $('#btnLike').setAttribute('aria-label', liked ? 'Убрать из любимого' : 'В любимое');
+    const gi = GENRES.findIndex(x => x[0] === cur.genre);
+    $('#needle').style.left = (gi >= 0 ? (gi + 0.5) / GENRES.length * 100 : 50) + '%';
+    $('#dialGenre').textContent = gname(cur.genre);
+  } else {
+    $('#dialGenre').textContent = 'ждёт тебя';
+  }
+  $$('.row').forEach(r => r.classList.toggle('on', !!cur && r.dataset.id === cur.id));
+  updatePlayState(); updateTime();
+}
+function renderList(el, list, ctx, emptyHtml) {
+  el.innerHTML = list.length ? list.map((t, i) => rowHtml(t, ctx, i)).join('') : emptyHtml;
+}
+function renderLikes() {
+  lists.likes = S.likes; lists.recent = S.recent;
+  $('#likesLead').textContent = S.likes.length ? `Отмечено: ${S.likes.length}. Каждый лайк сильнее всего двигает волну.` : '';
+  $('#likesActions').innerHTML = S.likes.length
+    ? `<button class="pill primary" type="button" data-act="playLikes">${ico('i-play')}Слушать</button><button class="pill" type="button" data-act="shuffleLikes">${ico('i-wave')}Вперемешку</button>` : '';
+  renderList($('#likesList'), S.likes, 'likes', '<p class="empty">Пока пусто. Нажми сердце у трека, который зашёл, и он появится здесь.</p>');
+  $('#recentHead').hidden = !S.recent.length;
+  renderList($('#recentList'), S.recent.slice(0, 15), 'recent', '');
+}
+function bars(el, entries, label, emptyText) {
+  const max = entries.length ? entries[0][1] : 1;
+  el.innerHTML = entries.length
+    ? entries.map(([k, v]) => `<div class="bar"><span>${esc(label(k))}</span><i style="--w:${Math.max(6, v / max * 100).toFixed(0)}%"></i></div>`).join('')
+    : `<p class="empty" style="padding:0">${emptyText}</p>`;
+}
+function renderTaste() {
+  const T = S.taste;
+  $('#stats').innerHTML = [[S.plays, 'дослушано'], [S.likes.length, 'в любимом'], [Object.keys(S.banned).length, 'скрыто']]
+    .map(([n, l]) => `<div class="stat"><b>${n}</b><small>${l}</small></div>`).join('');
+  bars($('#barsGenre'), top(T.genre, 6), gname, 'Пока не из чего считать. Включи волну и поставь пару лайков.');
+  bars($('#barsMood'), top(T.mood, 4), mname, 'Появится после первых лайков.');
+  bars($('#barsArtist'), top(T.artist, 5, e => e.s).map(([k]) => [k, T.artist[k].s]), k => T.artist[k].n, 'Появится после первых лайков.');
+  const b = Object.values(S.banned);
+  $('#bannedList').innerHTML = b.length
+    ? b.map(t => `<div class="row" style="cursor:default">${cover(t)}<div class="meta"><div class="t">${esc(t.title)}</div><div class="a">${esc(t.artist)}</div></div><button class="pill" type="button" data-unban="${esc(t.id)}">Вернуть</button></div>`).join('')
+    : '<p class="empty" style="padding:0">Ничего не скрыто.</p>';
+  storeNote();
+}
+function renderAll() { renderWave(); renderLikes(); renderTaste(); renderSearchList(); renderPlayer(); }
+
+/* ---------- search ---------- */
+function renderSearchList(msg) {
+  renderList($('#searchList'), lists.search, 'search', `<p class="empty">${msg || ''}</p>`);
+}
+async function runSearch(q) {
+  const head = $('#searchHead');
+  head.textContent = q ? 'Результаты' : 'В тренде на этой неделе';
+  renderSearchList('Ищу…'); lists.search = [];
+  try {
+    const raw = q ? await api('/tracks/search', {query: q, limit: 30}) : await api('/tracks/trending', {limit: 30, time: 'week'});
+    lists.search = raw.map(norm).filter(t => t && t.ok && !S.banned[t.id]);
+    renderSearchList(lists.search.length ? '' : 'Ничего не нашлось. Попробуй другое слово или название жанра.');
+    if (!q) searchLoaded = true;
+  } catch (e) { renderSearchList('Каталог не отвечает: ' + (lastErr || why(e)) + ' Подробности: вкладка «Вкус», проверка связи.'); }
+}
+
+/* ---------- ui helpers ---------- */
+let toastT;
+function toast(msg) {
+  const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 2600);
+}
+function openSheet() { if (!cur) return; $('#sheet').classList.add('open'); $('#sheet').setAttribute('aria-hidden', 'false'); }
+function closeSheet() { $('#sheet').classList.remove('open'); $('#sheet').setAttribute('aria-hidden', 'true'); }
+function showTab(name) {
+  $$('.tab').forEach(s => s.hidden = s.id !== 'tab-' + name);
+  $$('.nav button').forEach(b => b.setAttribute('aria-current', b.dataset.tab === name ? 'page' : 'false'));
+  window.scrollTo(0, 0);
+  if (name === 'search' && !searchLoaded) runSearch('');
+  if (name === 'likes') renderLikes();
+  if (name === 'taste') renderTaste();
+}
+function setMedia() {
+  if (!('mediaSession' in navigator) || !cur) return;
+  try {
+    navigator.mediaSession.metadata = new MediaMetadata({title: cur.title, artist: cur.artist, album: gname(cur.genre), artwork: cur.art ? [{src: cur.art, sizes: '480x480'}] : []});
+  } catch (e) {}
+}
+function initMedia() {
+  if (!('mediaSession' in navigator)) return;
+  const h = (a, f) => { try { navigator.mediaSession.setActionHandler(a, f); } catch (e) {} };
+  h('play', () => au.play().catch(() => {})); h('pause', () => au.pause());
+  h('nexttrack', () => advance('skip')); h('previoustrack', prev);
+  h('seekto', d => { if (d.seekTime != null) au.currentTime = d.seekTime; });
+}
+
+/* ---------- events ---------- */
+document.addEventListener('click', e => {
+  const t = e.target;
+  const likeBtn = t.closest('[data-like]');
+  if (likeBtn) { like(lists[likeBtn.dataset.ctx][+likeBtn.dataset.like]); return; }
+  const row = t.closest('.row[data-ctx]');
+  if (row) { const l = lists[row.dataset.ctx]; playList(l, +row.dataset.i, 'list'); return; }
+  const modeBtn = t.closest('[data-mode]');
+  if (modeBtn) { S.mode = modeBtn.dataset.mode; save(); renderWave(); if (cur && mode === 'wave') { queue.length = qi + 1; refill().catch(() => {}); toast('Настроение: ' + MODES[S.mode].label.toLowerCase()); } return; }
+  const seed = t.closest('[data-seed]');
+  if (seed) { const g = seed.dataset.seed; S.seeds = S.seeds.includes(g) ? S.seeds.filter(x => x !== g) : [...S.seeds, g]; save(); renderWave(); return; }
+  const unban = t.closest('[data-unban]');
+  if (unban) { delete S.banned[unban.dataset.unban]; save(); renderTaste(); return; }
+  const tab = t.closest('[data-tab]');
+  if (tab) { showTab(tab.dataset.tab); return; }
+  const act = t.closest('[data-act]');
+  if (act) {
+    if (act.dataset.act === 'playLikes') playList(S.likes, 0, 'list');
+    if (act.dataset.act === 'shuffleLikes') playList([...S.likes].sort(() => Math.random() - 0.5), 0, 'list');
+  }
+});
+document.addEventListener('keydown', e => {
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('.row[data-ctx], #miniMeta')) { e.preventDefault(); e.target.click(); }
+  if (e.key === 'Escape') closeSheet();
+});
+$('#waveBtn').addEventListener('click', () => { if (cur && mode === 'wave') toggle(); else startWave(); });
+$('#miniPlay').addEventListener('click', toggle);
+$('#miniNext').addEventListener('click', () => advance('skip'));
+$('#miniMeta').addEventListener('click', openSheet);
+$('#sheetClose').addEventListener('click', closeSheet);
+$('#btnPlay').addEventListener('click', toggle);
+$('#btnNext').addEventListener('click', () => advance('skip'));
+$('#btnPrev').addEventListener('click', prev);
+$('#btnBan').addEventListener('click', ban);
+$('#btnLike').addEventListener('click', () => like(cur));
+const seek = $('#seek');
+seek.addEventListener('pointerdown', () => { seeking = true; });
+seek.addEventListener('input', () => {
+  const d = (isFinite(au.duration) && au.duration) || (cur && cur.dur) || 0;
+  seek.style.setProperty('--p', seek.value / 10 + '%');
+  $('#tCur').textContent = fmt(d * seek.value / 1000);
+});
+seek.addEventListener('change', () => {
+  const d = (isFinite(au.duration) && au.duration) || 0;
+  if (d) au.currentTime = d * seek.value / 1000;
+  seeking = false;
+});
+$('#searchForm').addEventListener('submit', e => { e.preventDefault(); const q = $('#q').value.trim(); runSearch(q); $('#q').blur(); });
+
+$('#diagBtn').addEventListener('click', async () => {
+  const out = $('#diagOut'); out.hidden = false;
+  const lines = [`Страница открыта как: ${location.protocol}//${location.host || '(файл)'}`, `Браузер онлайн: ${navigator.onLine ? 'да' : 'нет'}`, `Адрес каталога: ${base()}`];
+  out.textContent = lines.join('\n') + '\nПроверяю…';
+  const t0 = performance.now();
+  try {
+    const r = await api('/tracks/trending', {limit: 1});
+    lines.push(`Каталог: ответил за ${Math.round(performance.now() - t0)} мс, треков: ${r.length}`);
+    const t = norm(r[0]);
+    if (t) {
+      const probe = new Audio(); probe.preload = 'metadata';
+      const res = await new Promise(ok => {
+        const to = setTimeout(() => ok('нет ответа за 10 секунд'), 10000);
+        probe.addEventListener('loadedmetadata', () => { clearTimeout(to); ok('открылся'); });
+        probe.addEventListener('error', () => { clearTimeout(to); ok('не открылся'); });
+        probe.src = t.su || streamUrl(t);
+      });
+      lines.push('Поток звука: ' + res);
+    }
+  } catch (e) { lines.push('Каталог: ' + why(e)); }
+  out.textContent = lines.join('\n');
+});
+$('#bkShow').addEventListener('click', () => { $('#bk').value = JSON.stringify(S); });
+$('#bkCopy').addEventListener('click', async () => {
+  const ta = $('#bk'); ta.value = JSON.stringify(S);
+  try { await navigator.clipboard.writeText(ta.value); toast('Скопировано'); }
+  catch (e) { ta.select(); toast('Выдели текст и скопируй вручную'); }
+});
+$('#bkLoad').addEventListener('click', () => {
+  try {
+    const d = JSON.parse($('#bk').value);
+    if (!d || typeof d !== 'object' || !d.taste) throw new Error('bad');
+    adopt(d); save(); renderAll(); toast('Данные загружены');
+  } catch (e) { toast('Не получилось прочитать данные. Вставь текст целиком.'); }
+});
+let resetArmed = false;
+$('#bkReset').addEventListener('click', e => {
+  const b = e.currentTarget;
+  if (!resetArmed) { resetArmed = true; b.textContent = 'Точно сбросить?'; setTimeout(() => { resetArmed = false; b.textContent = 'Сбросить вкус'; }, 4000); return; }
+  resetArmed = false; b.textContent = 'Сбросить вкус';
+  S = blank(); save(); renderAll(); toast('Вкус сброшен');
+});
+
+/* ---------- boot ---------- */
+loadState();
+initMedia();
+if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) { navigator.serviceWorker.register('./sw.js').catch(() => {}); }
+renderAll();
+if (!canStore) { storeNote(); }
+window.addEventListener('offline', () => { $('#netState').textContent = 'нет сети'; });
+window.addEventListener('online', () => { $('#netState').textContent = ''; });
+if (!navigator.onLine) $('#netState').textContent = 'нет сети';
+window.__efir = {get S() { return S; }, get queue() { return queue; }, get cur() { return cur; }};
+})();
+</script>
+</body>
+</html>
