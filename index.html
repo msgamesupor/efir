@@ -102,6 +102,7 @@ h2.title{font:700 22px/1.15 var(--font-display);text-wrap:balance;margin-bottom:
 .pill .i{width:18px;height:18px}
 .actions{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 8px}
 .empty{color:var(--muted);padding:18px 0;text-wrap:pretty;max-width:46ch}
+.list>.empty{padding-inline:8px}
 
 /* Search */
 .search{display:flex;gap:8px;margin-bottom:14px}
@@ -122,6 +123,12 @@ h2.title{font:700 22px/1.15 var(--font-display);text-wrap:balance;margin-bottom:
 textarea{width:100%;min-height:96px;border-radius:12px;border:1px solid var(--line);background:var(--surface);padding:10px;font:12px/1.4 ui-monospace,Menlo,Consolas,monospace;resize:vertical}
 .note{background:var(--accent-soft);border-radius:12px;padding:12px 14px;margin-bottom:16px;font-size:14px}
 .diag{margin:6px 0 0;padding:12px;border-radius:12px;background:var(--surface);border:1px solid var(--line);font:12px/1.5 ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere;user-select:text}
+.field{display:grid;gap:8px}
+.field label{font-size:13px;color:var(--muted)}
+.field .inline{display:flex;gap:8px}
+.field input{flex:1;min-width:0;height:44px;padding:0 12px;border-radius:12px;border:1px solid var(--line);background:var(--surface);outline:none;font-size:14px}
+.field input:focus{border-color:var(--accent)}
+.field a{color:var(--accent)}
 .credit{color:var(--muted);font-size:12px;margin-top:28px}
 .credit a{color:inherit}
 .danger{color:var(--accent)}
@@ -255,9 +262,13 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;bac
     <h3 class="eyebrow">Исполнители</h3><div class="bars" id="barsArtist"></div>
     <h3 class="eyebrow">Скрытые треки</h3>
     <div class="list" id="bannedList"></div>
+    <h3 class="eyebrow">Источник музыки</h3>
+    <div class="chips" id="srcChips" role="group" aria-label="Источник музыки"></div>
+    <p class="lead" id="srcHint" style="margin:10px 0 0"></p>
+    <div id="srcCfg" style="margin-top:12px"></div>
     <h3 class="eyebrow">Связь с каталогом</h3>
-    <p class="lead" style="margin-bottom:10px">Если музыка не грузится, нажми проверку и пришли мне, что она покажет.</p>
-    <div class="actions" style="margin-top:0"><button class="pill primary" id="diagBtn" type="button">Проверить связь</button></div>
+    <p class="lead" style="margin-bottom:10px">Если музыка не грузится, нажми проверку. «Все источники» покажет, какой из них открывается из твоей сети.</p>
+    <div class="actions" style="margin-top:0"><button class="pill primary" id="diagBtn" type="button">Проверить выбранный</button><button class="pill" id="diagAll" type="button">Все источники</button></div>
     <pre id="diagOut" class="diag" hidden></pre>
     <h3 class="eyebrow">Перенос и сброс</h3>
     <p class="lead" style="margin-bottom:10px">Скопируй данные, чтобы перенести вкус на другое устройство или сохранить на всякий случай. Вставь их обратно и нажми «Загрузить».</p>
@@ -268,7 +279,7 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;bac
       <button class="pill" id="bkLoad" type="button">Загрузить</button>
       <button class="pill danger" id="bkReset" type="button">Сбросить вкус</button>
     </div>
-    <p class="credit">Музыку отдаёт каталог <a href="https://audius.co" target="_blank" rel="noopener">Audius</a>. Это независимые исполнители, а не релизы больших лейблов.</p>
+    <p class="credit">Музыку отдают открытые каталоги: <a href="https://audius.co" target="_blank" rel="noopener">Audius</a>, <a href="https://www.jamendo.com" target="_blank" rel="noopener">Jamendo</a> и <a href="https://archive.org" target="_blank" rel="noopener">Internet Archive</a>. Это независимые исполнители и архивные записи, а не релизы больших лейблов.</p>
   </section>
 </div>
 
@@ -349,7 +360,7 @@ const MOODRU = {Peaceful:'Умиротворённо',Romantic:'Романтич
 const mname = m => MOODRU[m] || m || '';
 
 /* ---------- state + storage ---------- */
-const blank = () => ({v:1, taste:{genre:{}, mood:{}, artist:{}}, likes:[], banned:{}, recent:[], recentIds:[], seeds:[], mode:'any', plays:0, skips:0});
+const blank = () => ({v:1, taste:{genre:{}, mood:{}, artist:{}}, likes:[], banned:{}, recent:[], recentIds:[], seeds:[], mode:'any', plays:0, skips:0, source:'audius', keys:{}, host:''});
 let S = blank();
 let canStore = true;
 function adopt(d) {
@@ -362,6 +373,9 @@ function adopt(d) {
   S.recentIds = Array.isArray(S.recentIds) ? S.recentIds : [];
   S.seeds = Array.isArray(S.seeds) ? S.seeds : [];
   S.banned = S.banned && typeof S.banned === 'object' ? S.banned : {};
+  S.keys = S.keys && typeof S.keys === 'object' ? S.keys : {};
+  S.host = typeof S.host === 'string' ? S.host : '';
+  if (!['audius', 'jamendo', 'archive'].includes(S.source)) S.source = 'audius';
 }
 function loadState() {
   try {
@@ -380,47 +394,202 @@ function storeNote() {
   n.textContent = canStore ? '' : 'В этом режиме открытия файла браузер не сохраняет данные. Вкус будет жить, пока открыта страница. Открой файл в Chrome или перенеси данные кнопкой «Скопировать» внизу.';
 }
 
-/* ---------- API ---------- */
-const base = () => (S.host || API).replace(/\/+$/, '');
-let lastErr = '';
+/* ---------- sources ---------- */
+const shuffle = a => a.map(x => [Math.random(), x]).sort((p, q) => p[0] - q[0]).map(x => x[1]);
+const srcOf = t => t.src || 'audius';
+const slim = t => ({id:t.id, src:srcOf(t), title:t.title, artist:t.artist, artistId:t.artistId, genre:t.genre, mood:t.mood, art:t.art, dur:t.dur});
+const artistSrc = id => String(id).startsWith('jm:') ? 'jamendo' : String(id).startsWith('ia:') ? 'archive' : 'audius';
 function why(e) {
   const m = (e && e.message) || '';
-  if (m === 'timeout') return 'нет ответа за 12 секунд. Похоже, адрес каталога не открывается из твоей сети.';
-  if (m === 'network') return 'браузер не смог подключиться к каталогу. Похоже на блокировку сети или запрет браузера.';
-  if (m === 'json') return 'каталог вернул не те данные.';
-  if (m.startsWith('http')) return 'каталог ответил ошибкой (' + m.replace('http ', '') + ').';
+  if (m === 'timeout') return 'нет ответа за 12 секунд. Похоже, адрес не открывается из твоей сети.';
+  if (m === 'network') return 'браузер не смог подключиться. Похоже на блокировку сети или запрет браузера.';
+  if (m === 'nokey') return 'нужен ключ. Введи его во вкладке «Вкус», в блоке «Источник музыки».';
+  if (m === 'key') return 'сервис не принял ключ. Проверь, что скопировал его целиком.';
+  if (m === 'json') return 'пришли не те данные.';
+  if (m.startsWith('http')) return 'сервис ответил ошибкой (' + m.replace('http ', '') + ').';
   return m || 'неизвестная ошибка.';
 }
-async function api(path, params = {}) {
-  const u = new URL(base() + path);
-  u.searchParams.set('app_name', APP);
-  for (const [k, v] of Object.entries(params)) if (v != null) u.searchParams.set(k, v);
-  const ctl = new AbortController();
-  const to = setTimeout(() => ctl.abort(), 12000);
+function failText(e) {
+  const m = (e && e.message) || '';
+  if (m === 'nokey' || m === 'key') { const w = why(e); return w[0].toUpperCase() + w.slice(1); }
+  return 'Каталог не отвечает: ' + why(e) + ' Подробности: вкладка «Вкус», проверка связи.';
+}
+async function getJson(url) {
+  const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 12000);
   try {
     let r;
-    try { r = await fetch(u, {signal: ctl.signal}); }
+    try { r = await fetch(url, {signal: ctl.signal}); }
     catch (e) { throw new Error(e && e.name === 'AbortError' ? 'timeout' : 'network'); }
     if (!r.ok) throw new Error('http ' + r.status);
-    let j;
-    try { j = await r.json(); } catch (e) { throw new Error('json'); }
+    try { return await r.json(); } catch (e) { throw new Error('json'); }
+  } finally { clearTimeout(to); }
+}
+
+/* Audius: без ключа. Из России обычно закрыт. */
+const AU = {
+  name: 'Audius', needsKey: false, hotTitle: 'В тренде на этой неделе',
+  hint: 'Независимые исполнители, много электроники и хип-хопа. Из России обычно открывается только через VPN.',
+  base: () => (S.host || 'https://api.audius.co/v1').replace(/\/+$/, ''),
+  async call(path, params = {}) {
+    const u = new URL(AU.base() + path);
+    u.searchParams.set('app_name', APP);
+    for (const [k, v] of Object.entries(params)) if (v != null) u.searchParams.set(k, v);
+    const j = await getJson(u);
     return Array.isArray(j.data) ? j.data : [];
-  } catch (e) { lastErr = why(e); throw e; }
-  finally { clearTimeout(to); }
-}
-function norm(t) {
-  if (!t || !t.id) return null;
-  const u = t.user || {}, a = t.artwork || {};
-  return {
-    id: String(t.id), title: t.title || 'Без названия', artist: u.name || 'Неизвестный исполнитель',
-    artistId: u.id ? String(u.id) : '', genre: t.genre || '', mood: t.mood || '',
-    art: a['480x480'] || a['150x150'] || a['1000x1000'] || '', dur: Math.round(t.duration || 0), plays: t.play_count || 0,
-    ok: t.is_streamable !== false && !t.is_stream_gated && !t.is_unlisted && !t.is_delete,
-    su: (t.stream && t.stream.url) || ''
-  };
-}
-const slim = t => ({id:t.id, title:t.title, artist:t.artist, artistId:t.artistId, genre:t.genre, mood:t.mood, art:t.art, dur:t.dur});
-const streamUrl = t => `${base()}/tracks/${encodeURIComponent(t.id)}/stream?app_name=${APP}`;
+  },
+  norm(t) {
+    if (!t || !t.id) return null;
+    const u = t.user || {}, a = t.artwork || {};
+    return {
+      src: 'audius', id: String(t.id), title: t.title || 'Без названия', artist: u.name || 'Неизвестный исполнитель',
+      artistId: u.id ? String(u.id) : '', genre: t.genre || '', mood: t.mood || '',
+      art: a['480x480'] || a['150x150'] || a['1000x1000'] || '', dur: Math.round(t.duration || 0), plays: t.play_count || 0,
+      ok: t.is_streamable !== false && !t.is_stream_gated && !t.is_unlisted && !t.is_delete,
+      su: (t.stream && t.stream.url) || ''
+    };
+  },
+  async genre(g) {
+    const time = pick(['week', 'month', 'allTime']), offset = Math.floor(Math.random() * 5) * 10;
+    let r = await AU.call('/tracks/trending', {genre: g, time, limit: 40, offset});
+    if (!r.length && offset) r = await AU.call('/tracks/trending', {genre: g, time, limit: 40});
+    return r.map(AU.norm).filter(Boolean);
+  },
+  async search(q) { return (await AU.call('/tracks/search', {query: q, limit: 30})).map(AU.norm).filter(Boolean); },
+  async hot(n = 30) { return (await AU.call('/tracks/trending', {limit: n, time: 'week'})).map(AU.norm).filter(Boolean); },
+  async byArtist(id) { return (await AU.call(`/users/${encodeURIComponent(id)}/tracks`, {limit: 25})).map(AU.norm).filter(Boolean); },
+  stream: t => `${AU.base()}/tracks/${encodeURIComponent(t.id)}/stream?app_name=${APP}`,
+  fallback: t => AU.stream(t)
+};
+
+/* Jamendo: нужен бесплатный ключ (Client ID). */
+const JM = {
+  name: 'Jamendo', needsKey: true, hotTitle: 'Популярное на этой неделе',
+  hint: 'Музыка независимых исполнителей под свободными лицензиями. Нужен бесплатный ключ (Client ID).',
+  base: 'https://api.jamendo.com/v3.0',
+  key: () => String((S.keys && S.keys.jamendo) || '').trim(),
+  tags: {
+    'Electronic':'electronic', 'House':'house', 'Techno':'techno', 'Trance':'trance', 'Drum & Bass':'drumnbass,dnb', 'Dubstep':'dubstep',
+    'Lo-Fi':'lofi,chillhop', 'Hip-Hop/Rap':'hiphop,rap', 'Trap':'trap', 'Pop':'pop', 'Rock':'rock', 'Metal':'metal,heavymetal',
+    'Alternative':'alternative,indie', 'Punk':'punkrock,punk', 'Jazz':'jazz', 'Classical':'classical', 'Ambient':'ambient', 'Folk':'folk',
+    'Acoustic':'acoustic', 'R&B/Soul':'rnb,soul', 'Funk':'funk', 'Disco':'disco', 'Reggae':'reggae', 'Soundtrack':'soundtrack',
+    'Hyperpop':'hyperpop,electropop', 'Vaporwave':'vaporwave,synthwave', 'Downtempo':'downtempo', 'Experimental':'experimental'
+  },
+  async call(path, params = {}) {
+    const key = JM.key();
+    if (!key) throw new Error('nokey');
+    const u = new URL(JM.base + path);
+    u.searchParams.set('client_id', key); u.searchParams.set('format', 'json');
+    for (const [k, v] of Object.entries(params)) if (v != null) u.searchParams.set(k, v);
+    const j = await getJson(u);
+    const h = j.headers || {};
+    if (h.status && h.status !== 'success') throw new Error(/client|key|credential|unauthor/i.test(h.error_message || '') ? 'key' : (h.error_message || 'Ошибка Jamendo'));
+    return Array.isArray(j.results) ? j.results : [];
+  },
+  genreOf(r) {
+    const gs = (((r.musicinfo || {}).tags || {}).genres || []).map(x => String(x).toLowerCase());
+    for (const [g, tags] of Object.entries(JM.tags)) if (tags.split(',').some(t => gs.includes(t))) return g;
+    return gs[0] || '';
+  },
+  norm(r, g) {
+    if (!r || !r.id || !r.audio) return null;
+    return {
+      src: 'jamendo', id: 'jm:' + r.id, title: r.name || 'Без названия', artist: r.artist_name || 'Неизвестный исполнитель',
+      artistId: r.artist_id ? 'jm:' + r.artist_id : '', genre: g || JM.genreOf(r), mood: '',
+      art: r.image || r.album_image || '', dur: Math.round(+r.duration || 0), plays: 0, ok: true, su: r.audio
+    };
+  },
+  async list(params, g) {
+    const r = await JM.call('/tracks/', Object.assign({include: 'musicinfo', audioformat: 'mp32', imagesize: 300}, params));
+    return r.map(x => JM.norm(x, g)).filter(Boolean);
+  },
+  async genre(g) {
+    const fuzzytags = JM.tags[g] || g.toLowerCase();
+    const order = pick(['popularity_week', 'popularity_month', 'popularity_total']), offset = Math.floor(Math.random() * 5) * 20;
+    let r = await JM.list({fuzzytags, order, limit: 40, offset}, g);
+    if (!r.length && offset) r = await JM.list({fuzzytags, order, limit: 40}, g);
+    return r;
+  },
+  search: q => JM.list({search: q, limit: 30}),
+  hot: (n = 30) => JM.list({order: 'popularity_week', limit: n}),
+  byArtist: id => JM.list({artist_id: String(id).replace('jm:', ''), limit: 25, order: 'popularity_total'}),
+  async stream(t) {
+    const r = await JM.call('/tracks/', {id: String(t.id).replace('jm:', ''), audioformat: 'mp32'});
+    if (!r[0] || !r[0].audio) throw new Error('Трек больше недоступен');
+    return r[0].audio;
+  }
+};
+
+/* Internet Archive: без ключа. */
+const IA = {
+  name: 'Internet Archive', needsKey: false, hotTitle: 'Самое скачиваемое в архиве',
+  hint: 'Нетлейблы и архивные записи. Ключ не нужен, но жанры подбираются грубо: всё зависит от того, как исполнители подписали альбомы.',
+  base: 'https://archive.org',
+  subj: {
+    'Electronic':'electronic', 'House':'house', 'Techno':'techno', 'Trance':'trance', 'Drum & Bass':'drum and bass', 'Dubstep':'dubstep',
+    'Lo-Fi':'lofi', 'Hip-Hop/Rap':'hip hop', 'Trap':'trap', 'Pop':'pop', 'Rock':'rock', 'Metal':'metal', 'Alternative':'alternative',
+    'Punk':'punk', 'Jazz':'jazz', 'Classical':'classical', 'Ambient':'ambient', 'Folk':'folk', 'Acoustic':'acoustic', 'R&B/Soul':'soul',
+    'Funk':'funk', 'Disco':'disco', 'Reggae':'reggae', 'Soundtrack':'soundtrack', 'Hyperpop':'hyperpop', 'Vaporwave':'vaporwave',
+    'Downtempo':'downtempo', 'Experimental':'experimental'
+  },
+  async items(extra, rows, page) {
+    const u = new URL(IA.base + '/advancedsearch.php');
+    u.searchParams.set('q', 'mediatype:audio AND (collection:netlabels OR collection:audio_music)' + (extra ? ' AND ' + extra : ''));
+    for (const f of ['identifier', 'title', 'creator']) u.searchParams.append('fl[]', f);
+    u.searchParams.append('sort[]', 'downloads desc');
+    u.searchParams.set('rows', rows); u.searchParams.set('page', page); u.searchParams.set('output', 'json');
+    const j = await getJson(u);
+    return (j.response && j.response.docs) || [];
+  },
+  len(v) {
+    if (!v) return 0;
+    const s = String(v);
+    return s.includes(':') ? s.split(':').map(Number).reduce((a, x) => a * 60 + (x || 0), 0) : Math.round(parseFloat(s) || 0);
+  },
+  url: (id, name) => `${IA.base}/download/${encodeURIComponent(id)}/${String(name).split('/').map(encodeURIComponent).join('/')}`,
+  async tracks(item, g, per) {
+    const j = await getJson(`${IA.base}/metadata/${encodeURIComponent(item.identifier)}`);
+    const mp3 = (j.files || []).filter(f => /mp3/i.test(f.format || ''));
+    let use = mp3;
+    for (const fm of ['VBR MP3', '128Kbps MP3', 'MP3']) { const x = mp3.filter(f => f.format === fm); if (x.length) { use = x; break; } }
+    const first = v => [].concat(v || [])[0] || '';
+    const creator = String(first((j.metadata || {}).creator) || first(item.creator) || '');
+    return shuffle(use).slice(0, per).map(f => ({
+      src: 'archive', id: 'ia:' + item.identifier + '/' + f.name,
+      title: String(first(f.title) || f.name.replace(/\.[^.]+$/, '')),
+      artist: String(first(f.creator) || first(f.artist) || creator || 'Неизвестный исполнитель'),
+      artistId: creator ? 'ia:' + creator.toLowerCase().slice(0, 60) : '',
+      genre: g || '', mood: '', art: `${IA.base}/services/img/${encodeURIComponent(item.identifier)}`,
+      dur: IA.len(f.length), plays: 0, ok: true, su: IA.url(item.identifier, f.name)
+    }));
+  },
+  async fromItems(items, g, per) {
+    if (!items.length) return [];
+    const res = await Promise.allSettled(items.map(it => IA.tracks(it, g, per)));
+    const ok = res.filter(r => r.status === 'fulfilled');
+    if (!ok.length) throw res[0].reason;
+    return ok.flatMap(r => r.value);
+  },
+  async genre(g) {
+    const q = `subject:"${IA.subj[g] || g.toLowerCase()}"`, page = 1 + Math.floor(Math.random() * 6);
+    let items = await IA.items(q, 20, page);
+    if (!items.length && page > 1) items = await IA.items(q, 20, 1);
+    return IA.fromItems(shuffle(items).slice(0, 3), g, 3);
+  },
+  async search(q) {
+    const s = q.replace(/["():\[\]\\]/g, ' ').trim();
+    if (!s) return IA.hot(30);
+    return IA.fromItems((await IA.items(`(title:("${s}") OR creator:("${s}") OR subject:("${s}"))`, 8, 1)).slice(0, 5), '', 4);
+  },
+  async hot(n = 30) {
+    const items = await IA.items('', 10, 1);
+    return n <= 3 ? IA.fromItems(items.slice(0, 1), '', 1) : IA.fromItems(items.slice(0, 5), '', 4);
+  },
+  stream(t) {
+    const s = String(t.id).slice(3), i = s.indexOf('/');
+    return IA.url(s.slice(0, i), s.slice(i + 1));
+  }
+};
+const SRC = {audius: AU, jamendo: JM, archive: IA};
 
 /* ---------- taste ---------- */
 function bump(o, k, d) { if (k) o[k] = (o[k] || 0) + d; }
@@ -448,14 +617,8 @@ function wsample(items, k) {
   }
   return out;
 }
-async function trendingGenre(g) {
-  const time = pick(['week', 'month', 'allTime']), offset = Math.floor(Math.random() * 5) * 10;
-  let r = await api('/tracks/trending', {genre: g, time, limit: 40, offset});
-  if (!r.length && offset) r = await api('/tracks/trending', {genre: g, time, limit: 40});
-  return r;
-}
 async function buildWave(n, exclude) {
-  const mode = MODES[S.mode] || MODES.any, T = S.taste;
+  const mode = MODES[S.mode] || MODES.any, T = S.taste, src = SRC[S.source] || AU;
   let weights = GENRES.map(([g]) => ({g, w: Math.max(0, T.genre[g] || 0) + (S.seeds.includes(g) ? 3 : 0)})).filter(x => x.w > 0);
   if (mode.genres) weights = mode.genres.map(g => ({g, w: Math.max(0, T.genre[g] || 0) + 2}));
   if (!weights.length) weights = ['Electronic','Pop','Rock','Hip-Hop/Rap','Lo-Fi','Alternative'].map(g => ({g, w: 1}));
@@ -464,23 +627,21 @@ async function buildWave(n, exclude) {
     const others = GENRES.map(x => x[0]).filter(g => !picks.includes(g));
     picks.push(pick(others));
   }
-  const jobs = picks.map(trendingGenre);
-  const favs = Object.entries(T.artist).filter(([, e]) => e.s >= 2).sort((a, b) => b[1].s - a[1].s).slice(0, 6);
-  if (favs.length && S.mode === 'any' && Math.random() < 0.45) {
-    jobs.push(api(`/users/${encodeURIComponent(pick(favs)[0])}/tracks`, {limit: 25}).catch(() => []));
-  }
-  const res = (await Promise.allSettled(jobs)).filter(r => r.status === 'fulfilled');
-  if (!res.length) throw new Error('net');
+  const jobs = picks.map(g => src.genre(g));
+  const favs = Object.entries(T.artist).filter(([id, e]) => e.s >= 2 && artistSrc(id) === S.source).sort((a, b) => b[1].s - a[1].s).slice(0, 6);
+  if (favs.length && src.byArtist && S.mode === 'any' && Math.random() < 0.45) jobs.push(src.byArtist(pick(favs)[0]).catch(() => []));
+  const all = await Promise.allSettled(jobs);
+  const res = all.filter(r => r.status === 'fulfilled');
+  if (!res.length) throw all[0].reason || new Error('network');
   const seen = new Set(exclude), cands = [];
-  for (const r of res) for (const raw of r.value) {
-    const t = norm(raw);
+  for (const r of res) for (const t of r.value) {
     if (!t || !t.ok || seen.has(t.id) || S.banned[t.id] || S.recentIds.includes(t.id)) continue;
-    if (t.dur < 45 || t.dur > 720) continue;
+    if (t.dur && (t.dur < 45 || t.dur > 720)) continue;
     if (((T.artist[t.artistId] || {}).s || 0) <= -4) continue;
     seen.add(t.id);
     const m = mode.moods && mode.moods.includes(t.mood) ? 3 : 0;
     t._s = (T.genre[t.genre] || 0) + (S.seeds.includes(t.genre) ? 2 : 0) + (T.mood[t.mood] || 0) * 0.5
-         + ((T.artist[t.artistId] || {}).s || 0) * 1.2 + Math.log10(t.plays + 10) * 0.8 + m + Math.random() * 2.5;
+         + ((T.artist[t.artistId] || {}).s || 0) * 1.2 + Math.log10((t.plays || 0) + 10) * 0.8 + m + Math.random() * 2.5;
     cands.push(t);
   }
   cands.sort((a, b) => b._s - a._s);
@@ -511,15 +672,30 @@ function finish(reason) {
   }
   decay(); save();
 }
-function startTrack() {
+let playTok = 0;
+async function startTrack() {
   const t = queue[qi];
   if (!t) return;
   cur = t;
+  const tok = ++playTok;
   S.recentIds = [...S.recentIds.filter(x => x !== t.id), t.id].slice(-150);
-  usingSu = !!t.su;
-  au.src = t.su || streamUrl(t);
-  au.play().catch(() => {});
   save(); renderPlayer(); setMedia();
+  let url = t.su;
+  if (!url) {
+    au.pause();
+    try { url = await SRC[srcOf(t)].stream(t); }
+    catch (e) {
+      if (tok !== playTok) return;
+      toast(failText(e)); errs++;
+      if (errs >= 3) { errs = 0; return; }
+      setTimeout(() => { if (tok === playTok) advance('error'); }, 900);
+      return;
+    }
+  }
+  if (tok !== playTok) return;
+  usingSu = !!t.su;
+  au.src = url;
+  au.play().catch(() => {});
   if (mode === 'wave' && queue.length - qi <= 3) refill().catch(() => {});
 }
 function playList(list, index, m) {
@@ -538,7 +714,7 @@ async function startWave() {
     playList(first, 0, 'wave');
     openSheet();
   } catch (e) {
-    toast(e.message === 'empty' ? 'Ничего подходящего не нашлось. Попробуй ещё раз.' : 'Каталог не отвечает: ' + (lastErr || why(e)) + ' Подробности: вкладка «Вкус», проверка связи.');
+    toast(e.message === 'empty' ? 'Ничего подходящего не нашлось. Попробуй ещё раз.' : failText(e));
   } finally { setLoading(false); }
 }
 async function advance(reason) {
@@ -594,7 +770,8 @@ au.addEventListener('timeupdate', updateTime);
 au.addEventListener('durationchange', updateTime);
 au.addEventListener('error', () => {
   if (!cur) return;
-  if (usingSu) { usingSu = false; au.src = streamUrl(cur); au.play().catch(() => {}); return; }
+  const sc = SRC[srcOf(cur)];
+  if (usingSu && sc.fallback) { usingSu = false; au.src = sc.fallback(cur); au.play().catch(() => {}); return; }
   errs++;
   if (errs >= 3) { errs = 0; au.pause(); toast('Музыка не загружается. Проверь интернет.'); return; }
   toast('Трек не открылся, включаю следующий');
@@ -704,24 +881,49 @@ function renderTaste() {
   $('#bannedList').innerHTML = b.length
     ? b.map(t => `<div class="row" style="cursor:default">${cover(t)}<div class="meta"><div class="t">${esc(t.title)}</div><div class="a">${esc(t.artist)}</div></div><button class="pill" type="button" data-unban="${esc(t.id)}">Вернуть</button></div>`).join('')
     : '<p class="empty" style="padding:0">Ничего не скрыто.</p>';
-  storeNote();
+  storeNote(); renderSources();
 }
-function renderAll() { renderWave(); renderLikes(); renderTaste(); renderSearchList(); renderPlayer(); }
+function renderSources() {
+  $('#srcChips').innerHTML = Object.entries(SRC).map(([k, sc]) => `<button class="chip" type="button" data-src="${k}" aria-pressed="${S.source === k}">${sc.name}</button>`).join('');
+  const sc = SRC[S.source];
+  $('#srcHint').textContent = sc.hint;
+  const box = $('#srcCfg');
+  if (box.dataset.for === S.source && box.contains(document.activeElement)) return;
+  box.dataset.for = S.source;
+  if (S.source === 'audius') {
+    box.innerHTML = `<div class="field"><label for="hostIn">Адрес каталога (необязательно)</label><div class="inline"><input id="hostIn" type="url" inputmode="url" placeholder="https://api.audius.co/v1" autocomplete="off" spellcheck="false"><button class="pill" type="button" data-act="saveHost">Сохранить</button></div><button class="pill" type="button" data-act="resetHost" style="justify-self:start">Вернуть стандартный</button></div>`;
+    $('#hostIn').value = S.host || '';
+  } else if (S.source === 'jamendo') {
+    box.innerHTML = `<div class="field"><label for="jmIn">Ключ Jamendo (Client ID)</label><div class="inline"><input id="jmIn" type="text" placeholder="например, 1a2b3c4d" autocomplete="off" spellcheck="false"><button class="pill" type="button" data-act="saveJm">Сохранить</button></div><p class="fine" style="text-align:left">Бесплатный ключ выдают на <a href="https://devportal.jamendo.com" target="_blank" rel="noopener">devportal.jamendo.com</a>: зарегистрируйся, создай приложение и скопируй Client ID. Ключ хранится только на этом устройстве, но попадёт в копию данных.</p></div>`;
+    $('#jmIn').value = S.keys.jamendo || '';
+  } else box.innerHTML = '';
+}
+function renderBadge() { $('#netState').textContent = navigator.onLine ? 'Источник: ' + SRC[S.source].name : 'нет сети'; }
+function setSource(k) {
+  if (!SRC[k] || S.source === k) return;
+  S.source = k; save();
+  lists.search = []; searchLoaded = false;
+  renderSources(); renderBadge();
+  const playing = !!cur && mode === 'wave';
+  toast('Источник: ' + SRC[k].name + (SRC[k].needsKey && !JM.key() ? '. Нужен ключ.' : playing ? '. Включится со следующего трека.' : ''));
+  if (playing) { queue.length = qi + 1; refill().catch(() => {}); }
+}
+function renderAll() { renderWave(); renderLikes(); renderTaste(); renderSearchList(); renderPlayer(); renderBadge(); }
 
 /* ---------- search ---------- */
 function renderSearchList(msg) {
   renderList($('#searchList'), lists.search, 'search', `<p class="empty">${msg || ''}</p>`);
 }
 async function runSearch(q) {
-  const head = $('#searchHead');
-  head.textContent = q ? 'Результаты' : 'В тренде на этой неделе';
+  const sc = SRC[S.source];
+  $('#searchHead').textContent = (q ? 'Результаты' : sc.hotTitle) + ' · ' + sc.name;
   renderSearchList('Ищу…'); lists.search = [];
   try {
-    const raw = q ? await api('/tracks/search', {query: q, limit: 30}) : await api('/tracks/trending', {limit: 30, time: 'week'});
-    lists.search = raw.map(norm).filter(t => t && t.ok && !S.banned[t.id]);
+    const r = q ? await sc.search(q) : await sc.hot(30);
+    lists.search = r.filter(t => t && t.ok && !S.banned[t.id]);
     renderSearchList(lists.search.length ? '' : 'Ничего не нашлось. Попробуй другое слово или название жанра.');
     if (!q) searchLoaded = true;
-  } catch (e) { renderSearchList('Каталог не отвечает: ' + (lastErr || why(e)) + ' Подробности: вкладка «Вкус», проверка связи.'); }
+  } catch (e) { renderSearchList(failText(e)); }
 }
 
 /* ---------- ui helpers ---------- */
@@ -767,12 +969,25 @@ document.addEventListener('click', e => {
   if (seed) { const g = seed.dataset.seed; S.seeds = S.seeds.includes(g) ? S.seeds.filter(x => x !== g) : [...S.seeds, g]; save(); renderWave(); return; }
   const unban = t.closest('[data-unban]');
   if (unban) { delete S.banned[unban.dataset.unban]; save(); renderTaste(); return; }
+  const srcBtn = t.closest('[data-src]');
+  if (srcBtn) { setSource(srcBtn.dataset.src); return; }
   const tab = t.closest('[data-tab]');
   if (tab) { showTab(tab.dataset.tab); return; }
   const act = t.closest('[data-act]');
   if (act) {
     if (act.dataset.act === 'playLikes') playList(S.likes, 0, 'list');
     if (act.dataset.act === 'shuffleLikes') playList([...S.likes].sort(() => Math.random() - 0.5), 0, 'list');
+    if (act.dataset.act === 'saveHost') {
+      const v = $('#hostIn').value.trim().replace(/\/+$/, '');
+      if (v && !/^https?:\/\//i.test(v)) { toast('Адрес должен начинаться с https://'); return; }
+      if (/^http:\/\//i.test(v) && location.protocol === 'https:') { toast('Для этой страницы нужен адрес с https://'); return; }
+      S.host = v; save(); lists.search = []; searchLoaded = false; toast(v ? 'Адрес сохранён' : 'Используется стандартный адрес');
+    }
+    if (act.dataset.act === 'resetHost') { S.host = ''; save(); $('#srcCfg').dataset.for = ''; renderSources(); toast('Используется стандартный адрес'); }
+    if (act.dataset.act === 'saveJm') {
+      S.keys.jamendo = $('#jmIn').value.trim(); save(); lists.search = []; searchLoaded = false;
+      toast(S.keys.jamendo ? 'Ключ сохранён. Нажми «Проверить выбранный».' : 'Ключ удалён');
+    }
   }
 });
 document.addEventListener('keydown', e => {
@@ -803,28 +1018,40 @@ seek.addEventListener('change', () => {
 });
 $('#searchForm').addEventListener('submit', e => { e.preventDefault(); const q = $('#q').value.trim(); runSearch(q); $('#q').blur(); });
 
-$('#diagBtn').addEventListener('click', async () => {
-  const out = $('#diagOut'); out.hidden = false;
-  const lines = [`Страница открыта как: ${location.protocol}//${location.host || '(файл)'}`, `Браузер онлайн: ${navigator.onLine ? 'да' : 'нет'}`, `Адрес каталога: ${base()}`];
-  out.textContent = lines.join('\n') + '\nПроверяю…';
+function probeAudio(t) {
+  return new Promise(async ok => {
+    let url;
+    try { url = t.su || await SRC[srcOf(t)].stream(t); } catch (e) { return ok(why(e)); }
+    const probe = new Audio(); probe.preload = 'metadata';
+    const to = setTimeout(() => ok('нет ответа за 10 секунд'), 10000);
+    probe.addEventListener('loadedmetadata', () => { clearTimeout(to); ok('открылся'); });
+    probe.addEventListener('error', () => { clearTimeout(to); ok('не открылся'); });
+    probe.src = url;
+  });
+}
+async function diagOne(k) {
+  const sc = SRC[k];
+  if (sc.needsKey && !JM.key()) return `${sc.name}: нужен ключ`;
   const t0 = performance.now();
   try {
-    const r = await api('/tracks/trending', {limit: 1});
-    lines.push(`Каталог: ответил за ${Math.round(performance.now() - t0)} мс, треков: ${r.length}`);
-    const t = norm(r[0]);
-    if (t) {
-      const probe = new Audio(); probe.preload = 'metadata';
-      const res = await new Promise(ok => {
-        const to = setTimeout(() => ok('нет ответа за 10 секунд'), 10000);
-        probe.addEventListener('loadedmetadata', () => { clearTimeout(to); ok('открылся'); });
-        probe.addEventListener('error', () => { clearTimeout(to); ok('не открылся'); });
-        probe.src = t.su || streamUrl(t);
-      });
-      lines.push('Поток звука: ' + res);
-    }
-  } catch (e) { lines.push('Каталог: ' + why(e)); }
-  out.textContent = lines.join('\n');
-});
+    const r = await sc.hot(1);
+    let line = `${sc.name}: каталог ответил за ${Math.round(performance.now() - t0)} мс, треков ${r.length}`;
+    if (r[0]) line += ', звук: ' + await probeAudio(r[0]);
+    return line;
+  } catch (e) { return `${sc.name}: ${why(e)}`; }
+}
+async function runDiag(keys) {
+  const out = $('#diagOut'); out.hidden = false;
+  const head = [`Страница: ${location.protocol}//${location.host || '(файл)'}`, `Браузер онлайн: ${navigator.onLine ? 'да' : 'нет'}`];
+  const lines = [];
+  out.textContent = head.join('\n') + '\nПроверяю…';
+  for (const k of keys) {
+    lines.push(await diagOne(k));
+    out.textContent = [...head, ...lines].join('\n') + (lines.length < keys.length ? '\nПроверяю…' : '');
+  }
+}
+$('#diagBtn').addEventListener('click', () => runDiag([S.source]));
+$('#diagAll').addEventListener('click', () => runDiag(Object.keys(SRC)));
 $('#bkShow').addEventListener('click', () => { $('#bk').value = JSON.stringify(S); });
 $('#bkCopy').addEventListener('click', async () => {
   const ta = $('#bk'); ta.value = JSON.stringify(S);
@@ -852,9 +1079,8 @@ initMedia();
 if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) { navigator.serviceWorker.register('./sw.js').catch(() => {}); }
 renderAll();
 if (!canStore) { storeNote(); }
-window.addEventListener('offline', () => { $('#netState').textContent = 'нет сети'; });
-window.addEventListener('online', () => { $('#netState').textContent = ''; });
-if (!navigator.onLine) $('#netState').textContent = 'нет сети';
+window.addEventListener('offline', renderBadge);
+window.addEventListener('online', renderBadge);
 window.__efir = {get S() { return S; }, get queue() { return queue; }, get cur() { return cur; }};
 })();
 </script>
